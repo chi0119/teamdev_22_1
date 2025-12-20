@@ -1,29 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import styles from "./page.module.css";
 import { Header } from "./(components)/Header";
 import { PostCard } from "./(components)/PostCard";
 import { SearchBar } from "./(components)/SearchBar";
 import { Pagination } from "./(components)/Pagination";
-import type { Post } from "./(types)/Post";
-
-// とりあえずのモックデータ
-const BASE_TIME = new Date("2025-11-23T00:00:00.000Z").getTime();
-const allMockPosts: Post[] = Array.from({ length: 90 }, (_, i) => {
-  const minutesAgo = i * 5;
-  const createdAt = new Date(BASE_TIME - minutesAgo * 60 * 1000).toISOString(); //
-
-  return {
-    id: i + 1,
-    title: `Post Title ${i + 1}`,
-    category: "Category",
-    author: i % 2 === 0 ? "Alice" : "Bob",
-    createdAt,
-    excerpt:
-      "サンプルテキストサンプルテキストサンプルテキストサンプルテキストサンプルテキストサンプルテキストサンプルテキストサンプルテキストサンプルテキスト",
-  };
-});
+import type { Post, DbPost } from "./(types)/Post";
 
 const PAGE_SIZE = 9;
 
@@ -32,16 +15,47 @@ export default function HomePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null);
 
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const res = await fetch("/api/posts");
+        if (!res.ok) throw new Error("記事データの取得に失敗しました");
+        const data = await res.json();
+
+        const formatted = data.map((p: DbPost) => {
+          return {
+            id: p.id,
+            title: p.title,
+            category: String(p.category_id),
+            author: p.user_id,
+            createdAt: p.created_at,
+            imageUrl: p.image_path,
+            excerpt: p.content,
+          };
+        });
+        setPosts(formatted);
+      } catch (error) {
+        console.error("記事データの取得に失敗しました：", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPosts();
+  }, []);
+
   const filteredPosts = useMemo(() => {
     const lower = searchValue.toLowerCase();
 
-    return allMockPosts.filter((post) => {
+    return posts.filter((post) => {
       const matchSearch = lower ? post.title.toLowerCase().includes(lower) : true;
       const matchAuthor = selectedAuthor ? post.author === selectedAuthor : true;
 
       return matchSearch && matchAuthor;
     });
-  }, [searchValue, selectedAuthor]);
+  }, [posts, searchValue, selectedAuthor]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
 
